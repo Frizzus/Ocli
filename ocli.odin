@@ -7,9 +7,11 @@ import "core:strings"
 import "core:slice"
 import "core:mem"
 
-// @private
+@private
 app_options:[dynamic]OcliOption
+@private
 app_positional_arguments:[dynamic]OcliPositionalArgument
+@private
 app_arguments:[dynamic]OcliArgument
 
 OcliOption :: struct{
@@ -84,6 +86,18 @@ register_argument :: proc(
     append(&app_arguments, option_argument)
 }
 
+is_string_ocli_arg :: proc(arg:OcliArgument, str:string) -> (res:bool, err:mem.Allocator_Error){
+    name_option := strings.concatenate([]string{"--", arg.name}) or_return
+    short_option := strings.concatenate([]string{"-", arg.short_name}) or_return
+    return str == name_option || str == short_option, nil
+}
+is_string_ocli_pos_arg :: proc(pos_arg:OcliPositionalArgument, str:string) -> bool
+is_string_ocli_option :: proc(option:OcliOption, str:string) -> (res:bool, err:mem.Allocator_Error){
+    name_option := strings.concatenate([]string{"--", option.name}) or_return
+    short_option := strings.concatenate([]string{"-", option.short_name}) or_return
+    return str == name_option || str == short_option, nil
+}
+
 parse_arguments :: proc() -> (parsed:map[string]any, err:ParseError){
     defer {
         delete(app_options)
@@ -99,10 +113,8 @@ parse_arguments :: proc() -> (parsed:map[string]any, err:ParseError){
     defer delete(indexes_to_rm)
 
     for option in app_options{
-        name_option := strings.concatenate([]string{"--", option.name}) or_return
-        short_option := strings.concatenate([]string{"-", option.short_name}) or_return
         for arg, i in os_args{
-            if arg == name_option || arg == short_option{
+            if is_string_ocli_option(option, arg) or_return{
                 parsed_args[option.name] = true
                 append(&indexes_to_rm, i)
             }
@@ -118,19 +130,17 @@ parse_arguments :: proc() -> (parsed:map[string]any, err:ParseError){
 
     //  argument => positional_argument
     for arg in app_arguments{
-        name_arg := strings.concatenate([]string{"--", arg.name}) or_return
-        short_arg := strings.concatenate([]string{"-", arg.short_name}) or_return
-
         for cli_arg, i in os_args{
-            if cli_arg == name_arg || cli_arg == short_arg{
+            if is_string_ocli_arg(arg, cli_arg) or_return{
                 if i+1 > len(os_args){
                     return nil, MissingArgumentError{
                         line = 125,
                         column = 20,
-                        cli_index = i+1,
+                        cli_index = i+1, 
                     }
                 }
                 
+                // check if os_args[i+1] is an argument
             }
             else if arg.required{
                 
