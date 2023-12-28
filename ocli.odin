@@ -7,6 +7,7 @@ import "core:strings"
 import "core:slice"
 import "core:mem"
 
+
 @private
 app_options:[dynamic]OcliOption
 @private
@@ -31,6 +32,12 @@ OcliArgument :: struct{
     short_name:string,
     help:string,
     required:bool,
+}
+
+OcliArg :: union{
+    OcliArgument,
+    OcliPositionalArgument,
+    OcliOption,
 }
 
 MissingArgumentError :: struct{
@@ -86,16 +93,16 @@ register_argument :: proc(
     append(&app_arguments, option_argument)
 }
 
-is_string_ocli_arg :: proc(arg:OcliArgument, str:string) -> (res:bool, err:mem.Allocator_Error){
-    name_option := strings.concatenate([]string{"--", arg.name}) or_return
-    short_option := strings.concatenate([]string{"-", arg.short_name}) or_return
-    return str == name_option || str == short_option, nil
-}
-is_string_ocli_pos_arg :: proc(pos_arg:OcliPositionalArgument, str:string) -> bool
-is_string_ocli_option :: proc(option:OcliOption, str:string) -> (res:bool, err:mem.Allocator_Error){
-    name_option := strings.concatenate([]string{"--", option.name}) or_return
-    short_option := strings.concatenate([]string{"-", option.short_name}) or_return
-    return str == name_option || str == short_option, nil
+is_string_ocli_arg :: proc(arg:OcliArg, str:string) -> (res:bool, err:mem.Allocator_Error){
+    switch arg in OcliArg{
+        case .OcliPositionalArgument:
+            name := strings.concatenate([]string{"--", arg.name}) or_return
+            return str == name, nil
+        case .OcliArgument, .OcliOption:
+            name := strings.concatenate([]string{"--", arg.name}) or_return
+            short := strings.concatenate([]string{"-", arg.short_name}) or_return
+            return str == name || str == short, nil
+    }
 }
 
 parse_arguments :: proc() -> (parsed:map[string]any, err:ParseError){
